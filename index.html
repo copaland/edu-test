@@ -63,7 +63,8 @@
 
         function changeCount(delta) {
             count += delta;
-            updateDisplay();
+            if (count < 0) count = 0;
+                updateDisplay();
         }
 
         function resetCount() {
