@@ -1,76 +1,344 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>카운트 앱</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sound Timing Analyzer</title>
     <style>
         body {
-            background: #222;
+            background: #1a1a1a;
             color: #fff;
-            font-family: 'Segoe UI', 'Malgun Gothic', Arial, sans-serif;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
         }
-        .counter {
-            font-size: 8rem;
-            margin-bottom: 40px;
-            letter-spacing: 0.1em;
+        
+        .container {
+            max-width: 1200px;
+            width: 100%;
         }
-        .buttons {
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #4CAF50;
+        }
+        
+        .chart-container {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        canvas {
+            border: 1px solid #444;
+            background: #000;
+            display: block;
+            margin: 0 auto;
+        }
+        
+        .controls {
             display: flex;
-            gap: 20px;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
         }
+        
         .btn {
-            width: 80px;
-            height: 80px;
-            font-size: 2.5rem;
+            padding: 10px 20px;
             border: none;
-            border-radius: 20px;
-            background: #444;
-            color: #fff;
+            border-radius: 5px;
+            background: #4CAF50;
+            color: white;
             cursor: pointer;
-            transition: background 0.2s;
+            font-size: 14px;
+            transition: background 0.3s;
         }
-        .btn:active {
-            background: #007bff;
+        
+        .btn:hover {
+            background: #45a049;
         }
-        .btn.reset {
-            background: #e74c3c;
+        
+        .btn.stop {
+            background: #f44336;
         }
-        .btn.reset:active {
-            background: #c0392b;
+        
+        .btn.stop:hover {
+            background: #da190b;
+        }
+        
+        .info {
+            text-align: center;
+            margin-top: 15px;
+            color: #ccc;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
-    <div class="counter" id="count">0</div>
-    <div class="buttons">
-        <button class="btn" onclick="changeCount(-1)">-</button>
-        <button class="btn reset" onclick="resetCount()">C</button>
-        <button class="btn" onclick="changeCount(1)">+</button>
+    <div class="container">
+        <h1>Sound Timing Analyzer</h1>
+        
+        <div class="chart-container">
+            <canvas id="chart" width="1000" height="400"></canvas>
+        </div>
+        
+        <div class="controls">
+            <button class="btn" onclick="analyzer.start()">Start Analysis</button>
+            <button class="btn stop" onclick="analyzer.stop()">Stop Analysis</button>
+            <button class="btn" onclick="analyzer.reset()">Reset Chart</button>
+        </div>
+        
+        <div class="info">
+            Chart displays a 10-second time window with scrolling effect. Data scrolls left as new data arrives.
+        </div>
     </div>
+
     <script>
-        let count = 0;
-        const countEl = document.getElementById('count');
-
-        function updateDisplay() {
-            countEl.textContent = count;
+        class SoundTimingAnalyzer {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.isRunning = false;
+                this.animationId = null;
+                
+                // Chart configuration
+                this.timeWindow = 10; // 10 seconds
+                this.sampleRate = 50; // 50 samples per second
+                this.maxSamples = this.timeWindow * this.sampleRate; // 500 samples
+                
+                // Data storage
+                this.dataPoints = [];
+                this.timeOffset = 0; // For scrolling effect
+                
+                // Chart dimensions
+                this.chartWidth = this.canvas.width - 80; // Leave margin for axes
+                this.chartHeight = this.canvas.height - 80;
+                this.chartX = 60;
+                this.chartY = 20;
+                
+                this.setupChart();
+            }
+            
+            setupChart() {
+                // Initialize with empty data points
+                this.dataPoints = [];
+                this.timeOffset = 0;
+            }
+            
+            generateSampleData() {
+                // Simulate sound timing data (replace with real audio analysis)
+                const time = Date.now() / 1000;
+                const amplitude = Math.sin(time * 2) * 0.5 + 0.5 + Math.random() * 0.2;
+                const frequency = Math.sin(time * 0.5) * 0.3 + 0.5;
+                
+                return {
+                    amplitude: amplitude,
+                    frequency: frequency,
+                    timestamp: time
+                };
+            }
+            
+            updateData() {
+                if (!this.isRunning) return;
+                
+                const newData = this.generateSampleData();
+                this.dataPoints.push(newData);
+                
+                // Instead of removing old data, implement scrolling
+                if (this.dataPoints.length > this.maxSamples) {
+                    // Keep all data but adjust the time offset for scrolling effect
+                    this.timeOffset = this.dataPoints.length - this.maxSamples;
+                }
+            }
+            
+            drawChart() {
+                // Clear canvas
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw grid and axes
+                this.drawGrid();
+                this.drawAxes();
+                
+                if (this.dataPoints.length === 0) return;
+                
+                // Calculate visible data range for scrolling effect
+                const visibleStart = Math.max(0, this.timeOffset);
+                const visibleEnd = Math.min(this.dataPoints.length, visibleStart + this.maxSamples);
+                const visibleData = this.dataPoints.slice(visibleStart, visibleEnd);
+                
+                if (visibleData.length === 0) return;
+                
+                // Draw amplitude line (green)
+                this.ctx.strokeStyle = '#4CAF50';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                
+                for (let i = 0; i < visibleData.length; i++) {
+                    const x = this.chartX + (i / (this.maxSamples - 1)) * this.chartWidth;
+                    const y = this.chartY + this.chartHeight - (visibleData[i].amplitude * this.chartHeight);
+                    
+                    if (i === 0) {
+                        this.ctx.moveTo(x, y);
+                    } else {
+                        this.ctx.lineTo(x, y);
+                    }
+                }
+                this.ctx.stroke();
+                
+                // Draw frequency line (blue)
+                this.ctx.strokeStyle = '#2196F3';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                
+                for (let i = 0; i < visibleData.length; i++) {
+                    const x = this.chartX + (i / (this.maxSamples - 1)) * this.chartWidth;
+                    const y = this.chartY + this.chartHeight - (visibleData[i].frequency * this.chartHeight);
+                    
+                    if (i === 0) {
+                        this.ctx.moveTo(x, y);
+                    } else {
+                        this.ctx.lineTo(x, y);
+                    }
+                }
+                this.ctx.stroke();
+                
+                // Draw time labels that scroll with the data
+                this.drawTimeLabels(visibleData);
+                
+                // Draw legend
+                this.drawLegend();
+            }
+            
+            drawGrid() {
+                this.ctx.strokeStyle = '#333';
+                this.ctx.lineWidth = 1;
+                
+                // Vertical grid lines (time)
+                for (let i = 0; i <= 10; i++) {
+                    const x = this.chartX + (i / 10) * this.chartWidth;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, this.chartY);
+                    this.ctx.lineTo(x, this.chartY + this.chartHeight);
+                    this.ctx.stroke();
+                }
+                
+                // Horizontal grid lines (amplitude)
+                for (let i = 0; i <= 5; i++) {
+                    const y = this.chartY + (i / 5) * this.chartHeight;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.chartX, y);
+                    this.ctx.lineTo(this.chartX + this.chartWidth, y);
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawAxes() {
+                this.ctx.strokeStyle = '#666';
+                this.ctx.lineWidth = 2;
+                
+                // Y-axis
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.chartX, this.chartY);
+                this.ctx.lineTo(this.chartX, this.chartY + this.chartHeight);
+                this.ctx.stroke();
+                
+                // X-axis
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.chartX, this.chartY + this.chartHeight);
+                this.ctx.lineTo(this.chartX + this.chartWidth, this.chartY + this.chartHeight);
+                this.ctx.stroke();
+                
+                // Y-axis labels
+                this.ctx.fillStyle = '#ccc';
+                this.ctx.font = '12px Arial';
+                this.ctx.textAlign = 'right';
+                
+                for (let i = 0; i <= 5; i++) {
+                    const y = this.chartY + this.chartHeight - (i / 5) * this.chartHeight;
+                    const value = (i / 5).toFixed(1);
+                    this.ctx.fillText(value, this.chartX - 10, y + 4);
+                }
+            }
+            
+            drawTimeLabels(visibleData) {
+                if (visibleData.length === 0) return;
+                
+                this.ctx.fillStyle = '#ccc';
+                this.ctx.font = '12px Arial';
+                this.ctx.textAlign = 'center';
+                
+                // Calculate time range for the visible window
+                const startTime = this.timeOffset / this.sampleRate;
+                const endTime = startTime + this.timeWindow;
+                
+                // Draw time labels every 2 seconds
+                for (let i = 0; i <= 5; i++) {
+                    const time = startTime + (i * 2);
+                    const x = this.chartX + (i / 5) * this.chartWidth;
+                    this.ctx.fillText(time.toFixed(1) + 's', x, this.chartY + this.chartHeight + 20);
+                }
+            }
+            
+            drawLegend() {
+                this.ctx.font = '14px Arial';
+                this.ctx.textAlign = 'left';
+                
+                // Amplitude legend
+                this.ctx.fillStyle = '#4CAF50';
+                this.ctx.fillRect(this.chartX + this.chartWidth - 200, this.chartY + 10, 20, 3);
+                this.ctx.fillStyle = '#ccc';
+                this.ctx.fillText('Amplitude', this.chartX + this.chartWidth - 170, this.chartY + 15);
+                
+                // Frequency legend
+                this.ctx.fillStyle = '#2196F3';
+                this.ctx.fillRect(this.chartX + this.chartWidth - 200, this.chartY + 30, 20, 3);
+                this.ctx.fillStyle = '#ccc';
+                this.ctx.fillText('Frequency', this.chartX + this.chartWidth - 170, this.chartY + 35);
+            }
+            
+            animate() {
+                if (!this.isRunning) return;
+                
+                this.updateData();
+                this.drawChart();
+                
+                this.animationId = requestAnimationFrame(() => this.animate());
+            }
+            
+            start() {
+                if (this.isRunning) return;
+                
+                this.isRunning = true;
+                this.animate();
+            }
+            
+            stop() {
+                this.isRunning = false;
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                    this.animationId = null;
+                }
+            }
+            
+            reset() {
+                this.stop();
+                this.setupChart();
+                this.drawChart();
+            }
         }
-
-        function changeCount(delta) {
-            count += delta;
-            if (count < 0) count = 0;
-                updateDisplay();
-        }
-
-        function resetCount() {
-            count = 0;
-            updateDisplay();
-        }
+        
+        // Initialize the analyzer
+        const analyzer = new SoundTimingAnalyzer('chart');
+        
+        // Draw initial empty chart
+        analyzer.drawChart();
     </script>
 </body>
 </html>
