@@ -1,76 +1,954 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
-    <title>카운트 앱</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 묵상 코치 - AI QT Coach</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 마크다운 파서 (AI 응답 렌더링용) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
     <style>
         body {
-            background: #222;
-            color: #fff;
-            font-family: 'Segoe UI', 'Malgun Gothic', Arial, sans-serif;
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f0f9ff;
+            color: #000000;
+            /* 기본 글자색 검정 */
+        }
+
+        /* 성경 본문용 Serif 폰트 제거하고 Noto Sans로 통일 */
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .calendar-day:hover:not(:disabled) {
+            background-color: #e0f2fe;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+        }
+
+        .selected-day {
+            background-color: #0ea5e9 !important;
+            /* sky-500 */
+            color: white !important;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+            transform: scale(1.05);
+        }
+
+        .has-plan::after {
+            content: '';
+            position: absolute;
+            bottom: 6px;
+            width: 6px;
+            height: 6px;
+            background-color: #10b981;
+            /* emerald-500 */
+            border-radius: 50%;
+        }
+
+        /* 로딩 스피너 */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #0ea5e9;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* 타이틀 색상 통일 클래스 (RGB 14, 165, 233 -> Hex #0EA5E9) */
+        .qt-section-title {
+            color: #0EA5E9;
+            font-weight: 700;
+            font-size: 1.125rem;
+            /* text-lg */
             display: flex;
-            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
+            margin-bottom: 0.75rem;
         }
-        .counter {
-            font-size: 8rem;
-            margin-bottom: 40px;
-            letter-spacing: 0.1em;
+
+        .qt-section-icon {
+            margin-right: 0.5rem;
+            width: 1.25rem;
+            height: 1.25rem;
         }
-        .buttons {
+    </style>
+</head>
+
+<body class="text-black min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
+                <div class="bg-[#0EA5E9] text-white p-2 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                </div>
+                <h1 class="text-xl font-bold text-slate-800 tracking-tight">AI 묵상 코치 <span
+                        class="text-sky-600 text-sm font-normal hidden sm:inline-block">| AI QT Coach | <a
+                            href="https://www.youtube.com/@kimson_kr" target="_blank"
+                            class="hover:text-sky-800 hover:underline transition"
+                            onclick="event.stopPropagation()">전자명장</a></span></h1>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="openSettings()"
+                    class="flex items-center gap-2 text-sm bg-slate-50 text-black px-4 py-2 rounded-full hover:bg-sky-50 hover:text-[#0EA5E9] transition font-medium border border-slate-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    설정 (CSV/API)
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex flex-col lg:flex-row gap-8 h-full">
+
+            <!-- Left Column: Calendar -->
+            <div class="w-full lg:w-1/3 flex-shrink-0">
+                <div class="bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-100 sticky top-24">
+                    <!-- Calendar Header -->
+                    <div class="bg-gradient-to-r from-[#0EA5E9] to-blue-600 p-6 text-white">
+                        <div class="flex justify-between items-center mb-4">
+                            <button onclick="changeMonth(-1)" class="p-1 hover:bg-white/20 rounded-full transition">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                            </button>
+                            <h2 id="currentMonthDisplay" class="text-2xl font-bold tracking-wide"></h2>
+                            <button onclick="changeMonth(1)" class="p-1 hover:bg-white/20 rounded-full transition">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="text-sky-100 text-sm text-center font-light">날짜를 선택하여 오늘의 묵상을 시작하세요.</p>
+                    </div>
+
+                    <!-- Calendar Grid -->
+                    <div class="p-4">
+                        <div class="grid grid-cols-7 gap-1 text-center mb-3">
+                            <div class="text-xs font-bold text-red-400">일</div>
+                            <div class="text-xs font-bold text-slate-400">월</div>
+                            <div class="text-xs font-bold text-slate-400">화</div>
+                            <div class="text-xs font-bold text-slate-400">수</div>
+                            <div class="text-xs font-bold text-slate-400">목</div>
+                            <div class="text-xs font-bold text-slate-400">금</div>
+                            <div class="text-xs font-bold text-sky-400">토</div>
+                        </div>
+                        <div id="calendarGrid" class="grid grid-cols-7 gap-2 text-sm">
+                            <!-- Calendar Generated by JS -->
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-slate-100 text-center">
+                            <button onclick="goToToday()" class="text-sm text-[#0EA5E9] font-medium hover:underline">오늘
+                                날짜로 이동</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: QT Content -->
+            <div class="w-full lg:w-2/3">
+                <div id="qtContainer"
+                    class="bg-white rounded-2xl shadow-xl border border-slate-100 min-h-[600px] relative overflow-hidden">
+
+                    <!-- 1. Empty State -->
+                    <div id="emptyState"
+                        class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-8 text-center bg-slate-50">
+                        <div class="w-20 h-20 bg-white rounded-full shadow-sm flex items-center justify-center mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-sky-300" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-black mb-2">묵상할 날짜를 선택해주세요</h3>
+                        <p class="text-sm max-w-xs mx-auto mb-4">달력에서 날짜를 클릭하면<br>AI가 묵상 코칭을 시작합니다.</p>
+                        <!--<button onclick="openSettings()"
+                            class="text-xs bg-white border border-slate-300 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition text-black">
+                            설정에서 CSV 업로드하기
+                        </button>-->
+                    </div>
+
+                    <!-- 2. Loading State -->
+                    <div id="loadingState"
+                        class="hidden absolute inset-0 flex flex-col items-center justify-center bg-white z-10">
+                        <div class="loader mb-4"></div>
+                        <p class="text-[#0EA5E9] font-medium animate-pulse">AI가 묵상 내용을 생성하고 있습니다...</p>
+                        <p id="loadingText" class="text-xs text-slate-400 mt-2">성경 본문 분석 중</p>
+                    </div>
+
+                    <!-- 3. Content Body -->
+                    <div id="contentBody" class="hidden h-full flex flex-col">
+                        <!-- Banner -->
+                        <div class="relative h-48 sm:h-56 bg-slate-800 flex-shrink-0">
+                            <img src="https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80"
+                                alt="Meditation Background" class="w-full h-full object-cover opacity-40">
+                            <div
+                                class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6 sm:p-8">
+                                <div
+                                    class="flex items-center gap-2 text-sky-300 text-xs font-bold uppercase tracking-wider mb-2">
+                                    <span id="qtDate"></span> • <span id="qtSourceType">AI Generated</span> •
+                                    <span>전자명장</span>
+                                </div>
+                                <h2 id="qtTitle" class="text-2xl sm:text-3xl font-bold text-white leading-tight"></h2>
+                                <p id="qtReference" class="text-slate-300 mt-2 font-medium text-lg"></p>
+                            </div>
+                        </div>
+
+                        <!-- Scrollable Content -->
+                        <div class="flex-grow p-6 sm:p-8 overflow-y-auto space-y-10">
+
+                            <!-- Bible Text -->
+                            <section class="fade-in" style="animation-delay: 0.1s">
+                                <h3 class="qt-section-title border-b border-slate-100 pb-2 mb-4">
+                                    <span
+                                        class="bg-[#0EA5E9] text-white p-1.5 rounded mr-2 flex items-center justify-center">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                        </svg>
+                                    </span>
+                                    성경 본문 <span class="text-xs font-normal text-slate-400 ml-2">(개역개정)</span>
+                                </h3>
+                                <div id="qtScripture"
+                                    class="bg-slate-50 p-6 rounded-xl text-black leading-relaxed text-base border-l-4 border-[#0EA5E9] shadow-sm font-sans">
+                                </div>
+                            </section>
+
+                            <!-- Summary -->
+                            <section class="fade-in" style="animation-delay: 0.2s">
+                                <h3 class="qt-section-title">
+                                    <span class="w-2 h-6 bg-[#0EA5E9] rounded-full mr-3"></span>
+                                    배경 및 요약
+                                </h3>
+                                <p id="qtSummary" class="text-black leading-relaxed"></p>
+                            </section>
+
+                            <!-- Vocabulary -->
+                            <section class="fade-in" style="animation-delay: 0.3s">
+                                <h3 class="qt-section-title">
+                                    <span class="w-2 h-6 bg-[#0EA5E9] rounded-full mr-3"></span>
+                                    어려운 단어 해설
+                                </h3>
+                                <div id="qtWords" class="grid gap-3 sm:grid-cols-2"></div>
+                            </section>
+
+                            <!-- Q&A -->
+                            <section class="bg-sky-50/50 rounded-2xl p-6 border border-sky-100 fade-in"
+                                style="animation-delay: 0.4s">
+                                <h3 class="qt-section-title">
+                                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z">
+                                        </path>
+                                    </svg>
+                                    나눔과 묵상 질문
+                                </h3>
+                                <div id="qtQuestions" class="space-y-6"></div>
+                            </section>
+
+                            <!-- Application -->
+                            <section class="fade-in" style="animation-delay: 0.5s">
+                                <h3 class="qt-section-title">
+                                    <span class="w-2 h-6 bg-[#0EA5E9] rounded-full mr-3"></span>
+                                    교훈과 적용
+                                </h3>
+                                <div class="flex gap-4 bg-yellow-50 p-5 rounded-xl border border-yellow-100">
+                                    <div class="flex-shrink-0 mt-1 text-yellow-500">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                        </svg>
+                                    </div>
+                                    <p id="qtApplication" class="text-black italic font-medium"></p>
+                                </div>
+                            </section>
+
+                            <!-- Prayer -->
+                            <section class="fade-in" style="animation-delay: 0.6s">
+                                <h3 class="qt-section-title">
+                                    <span class="w-2 h-6 bg-[#0EA5E9] rounded-full mr-3"></span>
+                                    마무리 기도
+                                </h3>
+                                <div class="bg-[#D7E3F8] text-black p-8 rounded-2xl relative overflow-hidden shadow-lg">
+                                    <div
+                                        class="absolute top-0 right-0 opacity-10 transform translate-x-8 -translate-y-8 text-[#00497F]">
+                                        <svg class="w-40 h-40" fill="currentColor" viewBox="0 0 24 24">
+                                            <path
+                                                d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                                        </svg>
+                                    </div>
+                                    <p id="qtPrayer"
+                                        class="relative z-10 font-medium text-center text-lg leading-relaxed">
+                                        "주님..."
+                                    </p>
+                                </div>
+                            </section>
+
+                            <!-- Share Buttons -->
+                            <div class="pt-8 pb-4 flex flex-col sm:flex-row justify-center gap-3 fade-in"
+                                style="animation-delay: 0.7s">
+                                <button onclick="shareText()"
+                                    class="group relative inline-flex items-center justify-center px-6 py-3 text-base font-medium text-slate-800 bg-yellow-400 rounded-full hover:bg-yellow-500 transition shadow-md">
+                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z">
+                                        </path>
+                                    </svg>
+                                    카카오톡/문자 공유
+                                </button>
+                                <button onclick="saveHtml()"
+                                    class="group relative inline-flex items-center justify-center px-6 py-3 text-base font-medium text-white bg-[#0EA5E9] rounded-full hover:bg-sky-600 transition shadow-lg hover:shadow-sky-500/30">
+                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                    </svg>
+                                    HTML 파일 저장
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal"
+        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all scale-100">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-bold text-black flex items-center gap-2">
+                    <svg class="w-6 h-6 text-[#0EA5E9]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    설정
+                </h3>
+                <button onclick="closeSettings()" class="text-slate-400 hover:text-black">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- API Key Section -->
+            <div class="mb-6">
+                <label class="block text-sm font-semibold text-black mb-2">Gemini API 키</label>
+                <input type="password" id="apiKeyInput" placeholder="AI 생성을 위해 키를 입력하세요"
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0EA5E9] outline-none transition text-black">
+                <p class="text-xs text-slate-500 mt-1">키가 없으면 기본 시뮬레이션 데이터가 표시됩니다.</p>
+            </div>
+
+            <!-- CSV Upload Section -->
+            <div class="mb-6">
+                <label class="block text-sm font-semibold text-black mb-2">QT 스케줄 업로드 (CSV)</label>
+                <div
+                    class="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:bg-slate-50 transition cursor-pointer relative">
+                    <input type="file" id="csvInput" accept=".csv"
+                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onchange="handleCsvUpload(this)">
+                    <div class="text-slate-500">
+                        <svg class="w-8 h-8 mx-auto mb-2 text-slate-400" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                            </path>
+                        </svg>
+                        <span id="fileNameDisplay" class="text-sm">클릭하여 CSV 파일 선택</span>
+                        <p class="text-xs text-slate-400 mt-1">형식: 일자, 범위 (예: 1, 고후 1:1-11)</p>
+                    </div>
+                </div>
+
+                <!-- CSV Preview -->
+                <div id="csvPreview" class="mt-3 hidden">
+                    <p class="text-xs font-semibold text-black mb-1">미리보기 (상위 3개):</p>
+                    <div class="bg-slate-100 p-2 rounded text-xs text-black font-mono whitespace-pre-wrap"
+                        id="csvPreviewContent"></div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                <button onclick="closeSettings()"
+                    class="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg text-sm font-medium">취소</button>
+                <button onclick="saveSettings()"
+                    class="px-4 py-2 bg-[#0EA5E9] text-white rounded-lg text-sm font-medium hover:bg-sky-600 shadow-md transition">저장
+                    및 적용</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-auto py-6">
+        <div class="max-w-7xl mx-auto px-4 text-center text-slate-400 text-sm">
+            <p>&copy; 2025 Daily QT Coach. Powered by Gemini AI.</p>
+        </div>
+    </footer>
+
+    <script>
+        // --- Global State ---
+        // API 키를 직접 입력하려면 아래 따옴표 안에 입력하세요. 예: "AIzaSy..."
+        const HARDCODED_API_KEY = "";
+
+        let currentDate = new Date();
+        let selectedDateObj = null;
+        let qtSchedule = {};
+        let userApiKey = HARDCODED_API_KEY;
+
+        // Cache for loaded schedules to avoid redundant network requests
+        const scheduleCache = {};
+
+        // --- Initialization ---
+        window.onload = () => {
+            // 하드코딩된 키가 없을 때만 로컬 스토리지에서 불러옴
+            if (!userApiKey) {
+                const savedKey = localStorage.getItem('qt_api_key');
+                if (savedKey) {
+                    userApiKey = savedKey;
+                }
+            }
+
+            // 설정 UI에 현재 적용된 키 표시
+            if (document.getElementById('apiKeyInput')) {
+                document.getElementById('apiKeyInput').value = userApiKey;
+            }
+
+            // Load initial schedule for current month
+            loadScheduleForMonth(currentDate.getFullYear(), currentDate.getMonth());
+        };
+
+        // --- Data Loading Logic ---
+        async function loadScheduleForMonth(year, month) {
+            // 1. Try to fetch from GitHub
+            const success = await fetchGithubSchedule(year, month);
+
+            // 2. If GitHub fails, check local storage fallback (manual upload)
+            if (!success) {
+                const savedSchedule = localStorage.getItem('qt_schedule');
+                if (savedSchedule) {
+                    console.log("Using manually uploaded schedule from local storage.");
+                    qtSchedule = { ...qtSchedule, ...JSON.parse(savedSchedule) };
+                }
+            }
+
+            // 3. Render calendar with whatever data we have
+            renderCalendar(year, month);
+        }
+
+        async function fetchGithubSchedule(year, month) {
+            const monthStr = String(month + 1).padStart(2, '0');
+            const cacheKey = `${year}${monthStr}`;
+
+            if (scheduleCache[cacheKey]) {
+                qtSchedule = { ...qtSchedule, ...scheduleCache[cacheKey] };
+                return true;
+            }
+
+            const url = `https://raw.githubusercontent.com/copaland/edu-test/main/qt/qt${year}${monthStr}.csv`;
+            console.log(`Fetching schedule from: ${url}`);
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                // Fix: Decode as EUC-KR (CP949) for Korean CSV support
+                const buffer = await response.arrayBuffer();
+                const decoder = new TextDecoder('euc-kr');
+                const text = decoder.decode(buffer);
+
+                const parsed = parseCsv(text);
+
+                // Update Cache and Global State
+                scheduleCache[cacheKey] = parsed;
+                qtSchedule = { ...qtSchedule, ...parsed };
+                return true;
+            } catch (error) {
+                console.warn(`Failed to fetch schedule for ${year}-${month + 1}:`, error);
+                return false;
+            }
+        }
+
+        function parseCsv(text) {
+            const lines = text.split(/\r?\n/);
+            const schedule = {};
+            lines.forEach((line, index) => {
+                if (index === 0 && line.includes("일자")) return; // Skip header
+                if (!line.trim()) return;
+
+                // Handle potential quotes or different delimiters if needed, but standard format is simple
+                const parts = line.split(',');
+                if (parts.length >= 2) {
+                    const day = parseInt(parts[0].trim(), 10);
+                    const range = parts[1].trim();
+                    if (!isNaN(day) && range) {
+                        schedule[day] = range;
+                    }
+                }
+            });
+            return schedule;
+        }
+
+        // --- Mock Data (Fallback) ---
+        function generateMockData(dateStr, bibleRef) {
+            const reference = bibleRef || "시편 23:1-6";
+            return {
+                isAi: false,
+                date: dateStr,
+                title: "주님과 동행하는 하루 (예시)",
+                reference: reference,
+                scripture: `(API 키를 입력하면 실제 '${reference}' 본문이 생성됩니다.)<br><br><sup>1</sup>여호와는 나의 목자시니 내게 부족함이 없으리로다<br><sup>2</sup>그가 나를 푸른 풀밭에 누이시며 쉴 만한 물 가로 인도하시는도다`,
+                summary: "이 내용은 시뮬레이션 데이터입니다. 설정에서 API 키를 입력하면 실제 AI 묵상이 생성됩니다.",
+                words: [
+                    { term: "시뮬레이션", desc: "실제가 아닌 가상 설정" },
+                    { term: "API Key", desc: "AI 서비스 사용 비밀번호" }
+                ],
+                questions: [
+                    { q: "핵심 메시지는?", a: "평안입니다." },
+                    { q: "CSV 자동 로드란?", a: "GitHub에서 매월 큐티 본문을 자동으로 가져옵니다." }
+                ],
+                application: "설정에서 API 키를 입력해보세요.",
+                prayer: "주님, 말씀을 묵상하게 하옵소서."
+            };
+        }
+
+        // --- Gemini API Logic ---
+        async function fetchGeminiQT(year, month, day, bibleRef) {
+            const dateStr = `${year}년 ${month + 1}월 ${day}일`;
+
+            if (!userApiKey) return generateMockData(dateStr, bibleRef);
+
+            const reference = bibleRef || "시편 23:1-6";
+            const prompt = `
+                당신은 한국어 성경 묵상(QT) 코치입니다. 
+                오늘의 날짜: ${dateStr}
+                성경 본문 범위: ${reference}
+                
+                위 본문 범위를 바탕으로 다음 JSON 형식의 묵상 자료를 생성해주세요.
+                응답은 반드시 순수한 JSON 문자열이어야 합니다.
+                성경 본문은 반드시 '대한성서공회 개역개정(NKRV)' 스타일로 작성하세요.
+                (V.3) 같은 불필요한 영어 구절 표기는 절대 하지 마세요.
+                절 번호는 반드시 <sup>1</sup>, <sup>2</sup> 태그를 사용하여 문장 앞에 붙이세요.
+
+                {
+                    "title": "본문 핵심을 관통하는 묵상 제목",
+                    "scriptureHtml": "개역개정(NKRV) 스타일로 성경 본문 전체 작성. (V.1) 표기 금지. 절 번호는 <sup>태그 사용.",
+                    "summary": "본문 배경과 핵심 요약",
+                    "words": [
+                        {"term": "단어1", "desc": "뜻 풀이"}
+                    ],
+                    "questions": [
+                        {"q": "질문", "a": "답변"}
+                    ],
+                    "application": "적용점",
+                    "prayer": "기도문"
+                }
+            `;
+
+            try {
+                document.getElementById('loadingState').classList.remove('hidden');
+                document.getElementById('contentBody').classList.add('hidden');
+                document.getElementById('emptyState').classList.add('hidden');
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${userApiKey}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
+
+                if (!response.ok) throw new Error(response.statusText);
+
+                const data = await response.json();
+                let rawText = data.candidates[0].content.parts[0].text;
+                rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                const aiData = JSON.parse(rawText);
+
+                return {
+                    isAi: true,
+                    date: dateStr,
+                    title: aiData.title,
+                    reference: reference,
+                    scripture: aiData.scriptureHtml,
+                    summary: aiData.summary,
+                    words: aiData.words,
+                    questions: aiData.questions,
+                    application: aiData.application,
+                    prayer: aiData.prayer
+                };
+
+            } catch (error) {
+                console.error("AI Error:", error);
+                alert(`AI 생성 실패: ${error.message}`);
+                return generateMockData(dateStr, bibleRef);
+            }
+        }
+
+        // --- CSV Handling (Manual Upload) ---
+        let tempSchedule = {};
+        function handleCsvUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            document.getElementById('fileNameDisplay').innerText = file.name;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const text = e.target.result;
+                tempSchedule = parseCsv(text);
+
+                // Preview
+                let previewText = "";
+                let count = 0;
+                for (const [day, range] of Object.entries(tempSchedule)) {
+                    if (count < 3) { previewText += `${day}, ${range}\n`; count++; }
+                }
+
+                document.getElementById('csvPreview').classList.remove('hidden');
+                document.getElementById('csvPreviewContent').innerText = previewText + "...";
+            };
+            reader.readAsText(file, 'euc-kr'); // Fix: Read as EUC-KR
+        }
+
+        // --- Settings UI ---
+        function openSettings() { document.getElementById('settingsModal').classList.remove('hidden'); }
+        function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); }
+        function saveSettings() {
+            const key = document.getElementById('apiKeyInput').value.trim();
+            userApiKey = key;
+            localStorage.setItem('qt_api_key', key);
+
+            // If manual CSV was uploaded, merge it
+            if (Object.keys(tempSchedule).length > 0) {
+                const manualSchedule = tempSchedule;
+                localStorage.setItem('qt_schedule', JSON.stringify(manualSchedule));
+                qtSchedule = { ...qtSchedule, ...manualSchedule };
+                alert("수동 스케줄이 적용되었습니다.");
+            }
+
+            renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
+            closeSettings();
+        }
+
+        // --- Calendar Logic ---
+        function renderCalendar(year, month) {
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = "";
+            const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
+            document.getElementById('currentMonthDisplay').innerText = `${year}년 ${monthNames[month]}`;
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date();
+
+            for (let i = 0; i < firstDay; i++) { grid.appendChild(document.createElement('div')); }
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const btn = document.createElement('button');
+                btn.className = "calendar-day h-14 rounded-xl flex flex-col items-center justify-center relative bg-white border border-slate-100 text-slate-600";
+
+                // Check schedule for this specific day
+                const bibleRange = qtSchedule[d];
+
+                const span = document.createElement('span');
+                span.innerText = d;
+                span.className = "font-medium z-10 text-lg";
+                const dayOfWeek = new Date(year, month, d).getDay();
+                if (dayOfWeek === 0) span.classList.add("text-red-400");
+                if (dayOfWeek === 6) span.classList.add("text-sky-400");
+                btn.appendChild(span);
+
+                if (bibleRange) btn.classList.add('has-plan');
+                if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) {
+                    btn.classList.add("border-sky-300", "ring-2", "ring-sky-100");
+                }
+                if (selectedDateObj && selectedDateObj.day === d && selectedDateObj.month === month && selectedDateObj.year === year) {
+                    btn.classList.add("selected-day");
+                    span.classList.remove("text-red-400", "text-sky-400");
+                }
+
+                // Disable click if no plan, or allow click but show empty state? 
+                // Current logic: always allow click, let fetchGeminiQT handle it (it will use default/mock if no range)
+                // But better UX: pass null range if not found
+                btn.onclick = () => selectDate(year, month, d, bibleRange);
+                grid.appendChild(btn);
+            }
+        }
+
+        function changeMonth(delta) {
+            currentDate.setMonth(currentDate.getMonth() + delta);
+            // Reload schedule for the new month
+            loadScheduleForMonth(currentDate.getFullYear(), currentDate.getMonth());
+        }
+
+        function goToToday() {
+            currentDate = new Date();
+            loadScheduleForMonth(currentDate.getFullYear(), currentDate.getMonth());
+            const d = currentDate.getDate();
+            // We need to wait for loadSchedule to finish ideally, but for simplicity we rely on cache or quick fetch
+            // A small timeout or just calling selectDate might miss the data if it's fetching.
+            // For better UX, we just render and let the user click, or try to select.
+            // Here we just reset the view.
+        }
+
+        async function selectDate(year, month, day, bibleRange) {
+            selectedDateObj = { year, month, day };
+            renderCalendar(year, month); // Re-render to show selection highlight
+
+            if (!bibleRange) {
+                // If no range is defined for this day
+                // We can either show an alert or just let the AI generate something generic/mock
+                // Let's try to generate generic or ask user to set it.
+                // For now, pass null, fetchGeminiQT will use default.
+            }
+
+            const data = await fetchGeminiQT(year, month, day, bibleRange);
+            renderQTContent(data);
+        }
+
+        function renderQTContent(data) {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
+            const content = document.getElementById('contentBody');
+            content.classList.remove('hidden');
+            content.classList.remove('fade-in');
+            void content.offsetWidth;
+            content.classList.add('fade-in');
+
+            document.getElementById('qtDate').innerText = data.date;
+            document.getElementById('qtSourceType').innerText = data.isAi ? "AI Generated" : "Preview Mode";
+            document.getElementById('qtTitle').innerText = data.title;
+            document.getElementById('qtReference').innerText = data.reference;
+            document.getElementById('qtScripture').innerHTML = data.scripture;
+            document.getElementById('qtSummary').innerText = data.summary;
+            document.getElementById('qtApplication').innerText = data.application;
+            document.getElementById('qtPrayer').innerText = data.prayer;
+
+            const wContainer = document.getElementById('qtWords');
+            wContainer.innerHTML = data.words.map(w => `
+                <div class="bg-slate-50 p-3 rounded border-l-2 border-sky-200">
+                    <span class="font-bold text-black block mb-1">${w.term}</span>
+                    <span class="text-sm text-black">${w.desc}</span>
+                </div>`).join('');
+
+            const qContainer = document.getElementById('qtQuestions');
+            qContainer.innerHTML = data.questions.map((q, idx) => `
+                <div>
+                    <p class="font-bold text-[#0EA5E9] mb-2">Q${idx + 1}. ${q.q}</p>
+                    <div class="bg-white p-4 rounded border border-sky-100 text-sm text-black shadow-sm">${q.a}</div>
+                </div>`).join('');
+
+            if (window.innerWidth < 1024) {
+                setTimeout(() => document.getElementById('qtContainer').scrollIntoView({ behavior: 'smooth' }), 100);
+            }
+        }
+
+        // --- Feature 1: Share Text (Kakao/SMS) ---
+        async function shareText() {
+            const title = document.getElementById('qtTitle').innerText;
+            const date = document.getElementById('qtDate').innerText;
+            const reference = document.getElementById('qtReference').innerText;
+
+            // Get clean text without HTML tags for sharing
+            const getCleanText = (id) => document.getElementById(id).innerText.trim();
+
+            const scripture = getCleanText('qtScripture');
+            const summary = getCleanText('qtSummary');
+            const app = getCleanText('qtApplication');
+            const prayer = getCleanText('qtPrayer');
+
+            // Construct a nicely formatted message
+            const fullText = `[AI 묵상 코치] ${date}
+${title} (${reference})
+
+[성경 본문]
+${scripture}
+
+[요약]
+${summary}
+
+[적용]
+${app}
+
+[기도]
+${prayer}
+
+- AI QT Coach -`;
+
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: `AI 묵상 코치 - ${date}`,
+                        text: fullText
+                    });
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('Share failed:', err);
+                        copyToClipboard(fullText);
+                    }
+                }
+            } else {
+                copyToClipboard(fullText);
+            }
+        }
+
+        function copyToClipboard(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                    .then(() => alert("클립보드에 복사되었습니다. 카카오톡이나 문자에 붙여넣기 하세요."))
+                    .catch(err => {
+                        console.error('Async: Could not copy text: ', err);
+                        fallbackCopyTextToClipboard(text);
+                    });
+            } else {
+                fallbackCopyTextToClipboard(text);
+            }
+        }
+
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) alert("클립보드에 복사되었습니다. 카카오톡이나 문자에 붙여넣기 하세요.");
+                else alert("복사에 실패했습니다.");
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+                prompt("이 텍스트를 복사하세요:", text);
+            }
+            document.body.removeChild(textArea);
+        }
+
+        // --- Feature 2: Save HTML ---
+        function saveHtml() {
+            const dateText = document.getElementById('qtDate').innerText;
+            const contentClone = document.getElementById('contentBody').cloneNode(true);
+
+            // Remove Share Buttons from Clone
+            const shareSection = contentClone.querySelector('.flex.flex-col.sm\\:flex-row');
+            if (shareSection) shareSection.remove();
+
+            // Styling fixes for static file
+            const scrollableDiv = contentClone.querySelector('.overflow-y-auto');
+            if (scrollableDiv) {
+                scrollableDiv.classList.remove('overflow-y-auto', 'h-full');
+                scrollableDiv.classList.add('h-auto');
+            }
+            contentClone.classList.remove('hidden', 'h-full');
+
+            const htmlContent = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 묵상 코치 - ${dateText}</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f0f9ff;
+            min-height: 100vh;
             display: flex;
-            gap: 20px;
+            justify-content: center;
+            padding: 20px;
+            color: #000000;
         }
-        .btn {
-            width: 80px;
-            height: 80px;
-            font-size: 2.5rem;
-            border: none;
-            border-radius: 20px;
-            background: #444;
-            color: #fff;
-            cursor: pointer;
-            transition: background 0.2s;
+        .qt-section-title {
+            color: #0EA5E9;
+            font-weight: 700;
+            font-size: 1.125rem;
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.75rem;
         }
-        .btn:active {
-            background: #007bff;
-        }
-        .btn.reset {
-            background: #e74c3c;
-        }
-        .btn.reset:active {
-            background: #c0392b;
+        .qt-section-icon {
+            margin-right: 0.5rem;
+            width: 1.25rem;
+            height: 1.25rem;
         }
     </style>
 </head>
 <body>
-    <div class="counter" id="count">0</div>
-    <div class="buttons">
-        <button class="btn" onclick="changeCount(-1)">-</button>
-        <button class="btn reset" onclick="resetCount()">C</button>
-        <button class="btn" onclick="changeCount(1)">+</button>
+    <div class="max-w-2xl w-full bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden relative h-fit">
+        ${contentClone.innerHTML}
     </div>
-    <script>
-        let count = 0;
-        const countEl = document.getElementById('count');
+</body>
+</html>`;
 
-        function updateDisplay() {
-            countEl.textContent = count;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `QT_Share_${dateText.replace(/ /g, '_')}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
 
-        function changeCount(delta) {
-            count += delta;
-            if (count < 0) count = 0;
-                updateDisplay();
-        }
-
-        function resetCount() {
-            count = 0;
-            updateDisplay();
-        }
     </script>
 </body>
+
 </html>

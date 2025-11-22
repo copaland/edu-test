@@ -1,0 +1,6 @@
+{
+    "appId": "com.dailyqt.coach",
+    "appName": "AI QT Coach",
+    "webDir": ".",
+    "bundledWebRuntime": false
+}
